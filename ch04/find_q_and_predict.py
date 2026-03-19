@@ -9,7 +9,7 @@ import sys
 
 sys.path.append("./")
 from ch03.btc_usdt import test_sationary
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     pred_MA = rolling_forecast(diff, TRAIN_LEN, HORIZON, WINDOW, "MA")
 
     # 책하고 달라서 약간 꼬이는데...아무튼 다시 df에서 테스트 분량을 받아서 처리해보자...
-    pred_df = df[int(len(diff) * 0.9) + 1 :].copy()
+    pred_df = df[int(len(diff) * 0.9) : -1].copy()
     pred_df["widget_sales_diff"] = test
     pred_df["pred_mean"] = pred_mean
     pred_df["pred_last"] = pred_last
@@ -205,3 +205,36 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()
+
+    df["pred_widget_sales"] = pd.Series()
+    pred_y0 = df["widget_sales"].iloc[450]
+    cumsum_yt = pred_df["pred_MA"].cumsum()
+    # 책과는 다르게, .loc을 사용해야 했고, 뭐가 다른지 모르겠지만
+    # 원래 버전 df['pred_widget_sales'][450:]는 copy 어쩌구 오류 뜨면서 업데이트가 안된다고...
+    df.loc[450:, "pred_widget_sales"] = pred_y0 + cumsum_yt.values
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    ax.plot(df["widget_sales"], "b-", label="Actual")
+    ax.plot(df["pred_widget_sales"], "r--", label="Forecast")
+    ax.legend(loc=2)
+
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    ax.axvspan(int(len(diff) * 0.9), len(diff), color="lightgray", alpha=0.5)
+    ax.set_xlim(400, 500)
+    plt.xticks([409, 439, 468, 498], ["Mar", "Apr", "May", "Jun"])
+
+    fig.autofmt_xdate()
+    plt.tight_layout()
+    plt.show()
+
+    mae_MA_undiff = mean_absolute_error(
+        df["widget_sales"].iloc[450:], df["pred_widget_sales"].iloc[450:]
+    )
+    print(f"MAE MA: {mae_MA_undiff}")
+    # MAE는 절대값이지만 원래 스케일에 맞춘 오차로, 2.324 정도...
+    # 원래 값이 70 정도에서 노는데, 2.32 정도면 3% 정도 오차라는 건데...잘 맞는건가?
+    # 그리고 2개 앞만 예측하는 방식이다...
