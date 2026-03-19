@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.stattools import adfuller
-from statsmodels.graphics.tsaplots import plot_acf
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 
 
 def draw_line_chart(x, y, title, xlabel, ylabel, xticks=None):
@@ -49,6 +49,12 @@ def variance_over_time(process: np.array) -> np.array:
 
 def draw_auto_corr(process: np.array, lags: int = 100):
     plot_acf(process, lags=lags)
+    plt.tight_layout()
+    plt.show()
+
+
+def draw_pacf(process: np.array, lags: int = 20):
+    plot_pacf(process, lags=lags)
     plt.tight_layout()
     plt.show()
 
@@ -109,7 +115,7 @@ def test_sationary(x, y, title="Data", xlabel="X", ylabel="Y", xticks=None):
 
 
 def rolling_forecast(
-    ts: np.ndarray, train_len: int, horizon: int, window: int, method: str
+    ts: np.ndarray, train_len: int, horizon: int, window: int, method: str, order=None
 ) -> list:
     """
     ts: 전체 시계열,
@@ -117,6 +123,7 @@ def rolling_forecast(
     horizon: 예측 기간,
     window: 자기상관 차수,
     method: 예측 방법 문자열
+    order: SARIMAX order 튜플
     return: 예측값 리스트
     """
     total_len = train_len + horizon
@@ -155,7 +162,7 @@ def rolling_forecast(
         for t in range(train_len, total_len, window):
             # order는 p, d, q인데, 자기회귀 차수 p도 0, 차분 d도 0? 이동 평균 차수만 넣는다?
             # 그럼 p, d는 아예 원 데이터를 넣고 돌릴 때 지정하는 건가?
-            model = SARIMAX(ts[:t], order=(0, 0, 2))
+            model = SARIMAX(ts[:t], order=order)
             res = model.fit(disp=False)
             # 학습 후 예측인데, 0에서 시작, 마지막 원소 (t - 1) 이후로 window 크기 2만큼 예측
             pred = res.get_prediction(0, (t - 1) + window)
@@ -171,7 +178,7 @@ def rolling_forecast(
 
         for t in range(train_len, total_len, window):
             # order는 p, d, q인데, 이동평균 차수 q도 0, 차분 d도 0
-            model = SARIMAX(ts[:t], order=(3, 0, 0))
+            model = SARIMAX(ts[:t], order=order)
             res = model.fit(disp=False)
             # 학습 후 예측, 마지막 원소인 (t-1) 이후로 window 2만큼 예측
             pred = res.get_prediction(0, (t - 1) + window)
