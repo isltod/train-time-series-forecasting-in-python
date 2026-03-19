@@ -13,37 +13,44 @@ from sklearn.metrics import mean_squared_error
 from statsmodels.tsa.arima_process import ArmaProcess
 
 
-# 1. 1000개 샘플 생성
-np.random.seed(42)
-
-ma2 = np.array([1, 0.9, 0.3])
-ar2 = np.array([1, 0, 0])
-
-MA2_process = ArmaProcess(ar2, ma2).generate_sample(nsample=1000)
-
-# 2. 차트 그리고
-draw_line_chart(
-    np.arange(len(MA2_process)), MA2_process, "MA(2) Process", "Time", "Value"
+# 1. 데이터
+df = pd.read_csv("./data/20220819_BTC-USDT.csv")
+print(df.head())
+xticks = (
+    [0, 119, 239, 359, 479, 599, 719, 839, 959, 1079, 1199, 1319, 1439],
+    ["00", "02", "04", "06", "08", "10", "12", "14", "16", "18", "20", "22", "24"],
 )
 
+# 원래 데이터로 하면 MSE가 억 단위가 나오고 완전 엉뚱한 값을 가리킨다...
+btc = np.array(df["close"])
+# 1차 차분으로 하면 MSE가 500 정도 나오고 대충은 따라다닌다...
+# btc = np.diff(df["close"])[:-1]
+# 즉 MA 모델은 데이터가 어떻게든 정상성을 가지도록 해야 한다는 것이고,
+# 자기상관이 없으면(백색 소음이면) 잘 안된다는 것...
+
+
+# 2. 차트 그리고
+draw_line_chart(np.arange(len(btc)), btc, "MA(2) Process", "Time", "Value")
+
 # 3. ADF 테스트
-test_ADF(MA2_process)
+test_ADF(btc)
 
 # 4. ACF 차트
-draw_auto_corr(MA2_process)
+draw_auto_corr(btc)
 
 # 5. 훈련/테스트 분리 - 나중에 차트 위해서 df 사용
-df = pd.DataFrame({"value": MA2_process})
-train = df.iloc[:800]
-test = df.iloc[800:]
+df = pd.DataFrame({"value": btc})
+cut = int(len(df) * 0.8)
+train = df.iloc[:cut]
+test = df.iloc[cut:]
 
 # 6. 평균, 마지막 값, MA(2) 모델 예측
 TRAIN_LEN = len(train)
 HORIZON = len(test)
 WINDOW = 2
-pred_mean = rolling_forecast(MA2_process, TRAIN_LEN, HORIZON, WINDOW, "mean")
-pred_last = rolling_forecast(MA2_process, TRAIN_LEN, HORIZON, WINDOW, "last")
-pred_MA = rolling_forecast(MA2_process, TRAIN_LEN, HORIZON, WINDOW, "MA")
+pred_mean = rolling_forecast(btc, TRAIN_LEN, HORIZON, WINDOW, "mean")
+pred_last = rolling_forecast(btc, TRAIN_LEN, HORIZON, WINDOW, "last")
+pred_MA = rolling_forecast(btc, TRAIN_LEN, HORIZON, WINDOW, "MA")
 
 # 7. 모델 결과 비교 차트...아직은 모듈화 좀 어렵네...일단 한 번 더 만들어보자...
 # 그 중 테스트에 모델 결과 붙이고...
