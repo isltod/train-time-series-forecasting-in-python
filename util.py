@@ -148,7 +148,7 @@ def rolling_forecast(
 
         return pred_last
 
-    # MA(q) - SARIMAX 모델 예측
+    # MA(q) - SARIMAX MA 모델 예측
     elif method == "MA":
         pred_MA = []
 
@@ -164,3 +164,19 @@ def rolling_forecast(
             pred_MA.extend(oos_pred)
 
         return pred_MA
+
+    # AR(p) - SARIMAX AR 모델 예측
+    elif method == "AR":
+        pred_AR = []
+
+        for t in range(train_len, total_len, window):
+            # order는 p, d, q인데, 이동평균 차수 q도 0, 차분 d도 0
+            model = SARIMAX(ts[:t], order=(3, 0, 0))
+            res = model.fit(disp=False)
+            # 학습 후 예측, 마지막 원소인 (t-1) 이후로 window 2만큼 예측
+            pred = res.get_prediction(0, (t - 1) + window)
+            # 예측 값은 predicted_mean 리스트에 들어있고, 그 마지막 2개가 예측값
+            oos_pred = pred.predicted_mean[-window:]
+            pred_AR.extend(oos_pred)
+
+        return pred_AR
