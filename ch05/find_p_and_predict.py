@@ -68,7 +68,7 @@ WINDOW = 1
 
 pred_mean = rolling_forecast(diff, TRAIN_LEN, HORIZON, WINDOW, "mean")
 pred_last = rolling_forecast(diff, TRAIN_LEN, HORIZON, WINDOW, "last")
-pred_AR = rolling_forecast(diff, TRAIN_LEN, HORIZON, WINDOW, "AR")
+pred_AR = rolling_forecast(diff, TRAIN_LEN, HORIZON, WINDOW, "AR", (3, 0, 0))
 
 test["pred_mean"] = pred_mean
 test["pred_last"] = pred_last

@@ -152,7 +152,7 @@ if __name__ == "__main__":
     WINDOW = 2
     pred_mean = rolling_forecast(diff, TRAIN_LEN, HORIZON, WINDOW, "mean")
     pred_last = rolling_forecast(diff, TRAIN_LEN, HORIZON, WINDOW, "last")
-    pred_MA = rolling_forecast(diff, TRAIN_LEN, HORIZON, WINDOW, "MA")
+    pred_MA = rolling_forecast(diff, TRAIN_LEN, HORIZON, WINDOW, "MA", (0, 0, 2))
 
     # 책하고 달라서 약간 꼬이는데...아무튼 다시 df에서 테스트 분량을 받아서 처리해보자...
     pred_df = df[int(len(diff) * 0.9) : -1].copy()
