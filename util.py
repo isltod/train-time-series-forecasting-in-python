@@ -118,7 +118,7 @@ def test_sationary(x, y, title="Data", xlabel="X", ylabel="Y", xticks=None):
 
 
 def rolling_forecast(
-    ts: np.ndarray, train_len: int, horizon: int, window: int, method: str, order=None
+    ts: np.ndarray, tr_len: int, hrizn: int, wndw: int, mthd: str, ordr=None
 ) -> list:
     """
     ts: 전체 시계열,
@@ -129,17 +129,17 @@ def rolling_forecast(
     order: SARIMAX order 튜플
     return: 예측값 리스트
     """
-    total_len = train_len + horizon
+    total_len = tr_len + hrizn
 
     # 평균값 예측 방법
-    if method == "mean":
+    if mthd == "mean":
         pred_mean = []
 
         # train 끝/test 시작에서 시작, 총 갯수에서 끝, window 크기(2)만큼 증가
-        for t in range(train_len, total_len, window):
+        for t in range(tr_len, total_len, wndw):
             mean = np.mean(ts[:t])
             # 요 코드가 더 효율적일 거 같다...
-            pred_mean.extend([mean] * window)
+            pred_mean.extend([mean] * wndw)
             # 근데 평균값 또는 마지막 값을 그 뒤로 쫙 붙이는 거 아닌가?
             # 이번에는 2개씩 가면서 업데이트 된 값으로 바꿔가나?
             # pred_mean.extend(mean for _ in range(window))
@@ -147,49 +147,33 @@ def rolling_forecast(
         return pred_mean
 
     # 마지막 값으로 예측
-    elif method == "last":
+    elif mthd == "last":
         pred_last = []
 
-        for t in range(train_len, total_len, window):
+        for t in range(tr_len, total_len, wndw):
             # diff[t - 1]로 해도 되지만 좀 더 명확하게 처음부터 t-1개 까지의 마지막 원소
             last_value = ts[:t][-1]
             # 2개씩 넘어가고, 2칸씩 채우고...
-            pred_last.extend([last_value] * window)
+            pred_last.extend([last_value] * wndw)
 
         return pred_last
 
-    # MA(q) - SARIMAX MA 모델 예측
-    elif method == "MA":
-        pred_MA = []
+    # SARIMAX MA, AR, ARMA 모델 예측
+    elif mthd in ["MA", "AR", "ARMA"]:
+        pred_SARIMAX = []
 
-        for t in range(train_len, total_len, window):
+        for t in tqdm(range(tr_len, total_len, wndw)):
             # order는 p, d, q인데, 자기회귀 차수 p도 0, 차분 d도 0? 이동 평균 차수만 넣는다?
             # 그럼 p, d는 아예 원 데이터를 넣고 돌릴 때 지정하는 건가?
-            model = SARIMAX(ts[:t], order=order)
+            model = SARIMAX(ts[:t], order=ordr)
             res = model.fit(disp=False)
             # 학습 후 예측인데, 0에서 시작, 마지막 원소 (t - 1) 이후로 window 크기 2만큼 예측
-            pred = res.get_prediction(0, (t - 1) + window)
+            pred = res.get_prediction(0, (t - 1) + wndw)
             # 예측 값은 predicted_mean 리스트에 들어있고, 그 마지막 2개가 예측값
-            oos_pred = pred.predicted_mean[-window:]
-            pred_MA.extend(oos_pred)
+            oos_pred = pred.predicted_mean[-wndw:]
+            pred_SARIMAX.extend(oos_pred)
 
-        return pred_MA
-
-    # AR(p) - SARIMAX AR 모델 예측
-    elif method == "AR":
-        pred_AR = []
-
-        for t in range(train_len, total_len, window):
-            # order는 p, d, q인데, 이동평균 차수 q도 0, 차분 d도 0
-            model = SARIMAX(ts[:t], order=order)
-            res = model.fit(disp=False)
-            # 학습 후 예측, 마지막 원소인 (t-1) 이후로 window 2만큼 예측
-            pred = res.get_prediction(0, (t - 1) + window)
-            # 예측 값은 predicted_mean 리스트에 들어있고, 그 마지막 2개가 예측값
-            oos_pred = pred.predicted_mean[-window:]
-            pred_AR.extend(oos_pred)
-
-        return pred_AR
+        return pred_SARIMAX
 
 
 # endog 매개변수는 pd.Series와 list를 다 받는다는 얘기겠지...
@@ -247,6 +231,43 @@ def draw_train_test(x, y, vs, dy=None, ttl="Data", xlbl="X", ylbl="Y", xticks=No
     # 틱 데이터 있으면...
     if xticks is not None:
         plt.xticks(xticks[0], xticks[1])
+
+    plt.tight_layout()
+    plt.show()
+
+
+def draw_predicts(x, y, vs, preds, ttl="Data", xlbl="X", ylbl="Y", xticks=None):
+    symb = ["b-", "g:", "r-.", "k--", "y-"]
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # 차트 기본형 그리고
+    ax.plot(x, y, symb[0], label="Actual")
+
+    # 예측 사전들 돌면서 예측들 그리기
+    cnt = 1
+    test_start = len(y) - vs
+    for key, pred in preds.items():
+        ax.plot(x[test_start:], pred, symb[cnt], label=key)
+        cnt += 1
+        if cnt == len(symb):
+            cnt = 1
+
+    # 범례, 제목, 라벨 등
+    ax.legend(loc=2)
+    ax.set_title(ttl)
+    ax.set_xlabel(xlbl)
+    ax.set_ylabel(ylbl)
+
+    # 예측 부분 반전, 범위 한정 등
+    ax.axvspan(test_start, len(y), color="#808080", alpha=0.2)
+
+    # 틱 데이터 있으면...
+    if xticks is not None:
+        plt.xticks(xticks[0], xticks[1])
+
+    # x축 범위를 예측 주변으로...밑에
+    test_start = len(y) - int(vs * 1.2)
+    ax.set_xlim(test_start, len(y))
 
     plt.tight_layout()
     plt.show()
