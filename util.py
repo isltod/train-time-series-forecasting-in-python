@@ -218,3 +218,35 @@ def optimize_ARMA(endog: Union[pd.Series, list], order_list: list) -> pd.DataFra
     result_df = result_df.sort_values(by="AIC", ascending=True).reset_index(drop=True)
 
     return result_df
+
+
+def draw_train_test(x, y, vs, dy=None, ttl="Data", xlbl="X", ylbl="Y", xticks=None):
+    # 1차 차분 데이터 있으면 차트 크기 키우고 축도 하나 더...
+    if dy is None:
+        fig, ax1 = plt.subplots(figsize=(12, 6))
+    else:
+        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(12, 12))
+
+    # 기본 데이터 차트 그리고
+    ax1.plot(x, y)
+    ax1.set_title(ttl)
+    # 기본 데이터 x 라벨은 차분 데이터 없는 경우에...
+    if dy is None:
+        ax1.set_xlabel(xlbl)
+    ax1.set_ylabel(ylbl)
+    ax1.axvspan(len(y) - vs, len(y), color="#808080", alpha=0.2)
+
+    # 차분 데이터 있으면 그것도 그리기
+    if dy is not None:
+        dx = x[1:]
+        ax2.plot(dx, dy)
+        ax2.set_xlabel(xlbl)
+        ax2.set_ylabel(ylbl)
+        ax2.axvspan(len(dy) - vs, len(dy), color="#808080", alpha=0.2)
+
+    # 틱 데이터 있으면...
+    if xticks is not None:
+        plt.xticks(xticks[0], xticks[1])
+
+    plt.tight_layout()
+    plt.show()
