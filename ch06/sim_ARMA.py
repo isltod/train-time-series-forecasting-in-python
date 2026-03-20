@@ -2,6 +2,7 @@ import sys
 
 sys.path.append("./")
 import numpy as np
+from itertools import product
 from statsmodels.tsa.arima_process import ArmaProcess
 from util import *
 
@@ -16,12 +17,23 @@ ARMA_1_1 = ArmaProcess(ar1, ma1).generate_sample(nsample=1000)
 
 # 2. ADF 테스트, ACF, PACF 그리기
 # p value 1.7e-8으로 정상적인데
-test_ADF(ARMA_1_1)
+# test_ADF(ARMA_1_1)
 # 자기상관이 있고, 3 이후에 무의미하게 되는데...코사인 곡선?처럼 위아래를 왔다갔다...
 # 근데 위에서 ma1의 계수를 1차로 줬는데 2차 자기상관이 나오니 뭔가 잘못됐다는 얘기라는데...
-draw_auto_corr(ARMA_1_1)
+# draw_auto_corr(ARMA_1_1)
 # 편자기상관이 거의 20까지 사라지질 않고 위아래 왔다갔다...
-draw_pacf(ARMA_1_1)
+# draw_pacf(ARMA_1_1)
 
 # 그래서 여기까지 결론은?
 #   이런 모양은 ARMA이고, 어쨌든 p, q를 찾아야 하는데, 이럴 때는 ACF나 PACF가 쓸모없다...
+
+# p, q 0~3 조합으로 AIC 비교
+ps = range(0, 4)
+qs = range(0, 4)
+
+order_list = list(product(ps, qs))
+print(order_list)
+
+result_df = optimize_ARMA(ARMA_1_1, order_list)
+# 애초에 차수는 1, 1로 만들었으니 (1, 1)이 가장 AIC 낮게 나온다...
+print(result_df)
