@@ -4,9 +4,12 @@ matplotlib.use("TkAgg")
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from tqdm import tqdm
+from typing import Union
 
 
 def draw_line_chart(x, y, title, xlabel, ylabel, xticks=None):
@@ -187,3 +190,31 @@ def rolling_forecast(
             pred_AR.extend(oos_pred)
 
         return pred_AR
+
+
+# endog 매개변수는 pd.Series와 list를 다 받는다는 얘기겠지...
+def optimize_ARMA(endog: Union[pd.Series, list], order_list: list) -> pd.DataFrame:
+    results = []
+    # 주피터 노트북에서는 tqdm_notebook
+    for order in tqdm(order_list):
+        try:
+            # 하던대로 order는 p, d, q이므로... simple_differencing은 차분 되지 않도록 False
+            model = SARIMAX(
+                endog,
+                order=(order[0], 0, order[1]),
+                simple_differencing=False,
+            )
+            # 상태 메시지 표시 안한다...뭐 별 차이가 없는데?
+            result = model.fit(disp=False)
+            # AIC 값은 aic 속성에...
+            aic = result.aic
+            results.append([order, aic])
+        except:
+            continue
+
+    # 결과 리스트로 데이터프레임 만들고, 정렬해서 반환
+    result_df = pd.DataFrame(results)
+    result_df.columns = ["(p, q)", "AIC"]
+    result_df = result_df.sort_values(by="AIC", ascending=True).reset_index(drop=True)
+
+    return result_df
