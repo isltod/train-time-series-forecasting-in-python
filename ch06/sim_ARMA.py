@@ -3,7 +3,11 @@ import sys
 sys.path.append("./")
 import numpy as np
 from itertools import product
+from statsmodels.graphics.gofplots import qqplot
+from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.arima_process import ArmaProcess
+
+# 밑에 SARIMAX는 아래 util에서 import 되어서 그냥 쓴다..
 from util import *
 
 
@@ -34,6 +38,34 @@ qs = range(0, 4)
 order_list = list(product(ps, qs))
 print(order_list)
 
-result_df = optimize_ARMA(ARMA_1_1, order_list)
 # 애초에 차수는 1, 1로 만들었으니 (1, 1)이 가장 AIC 낮게 나온다...
-print(result_df)
+# result_df = optimize_ARMA(ARMA_1_1, order_list)
+# print(result_df)
+
+# 잔차 분석
+# 감마 분포 등은 다른 곳에 휜다...
+gamma = np.random.default_rng().standard_gamma(shape=2, size=1000)
+qqplot(gamma, line="45")
+# 일단 잔차는 정규분보를 가정하고, qqplot에서 직선이 나와야 한다...
+normal = np.random.normal(size=1000)
+qqplot(normal, line="45")
+plt.tight_layout()
+# plt.show()
+
+# 그럼 (1, 1)로 모델링 한 결과에서 잔차를 받아서 qqplot해보면...
+model = SARIMAX(ARMA_1_1, order=(1, 0, 1), simple_differencing=False)
+result = model.fit()
+residuals = result.resid
+
+qqplot(residuals, line="45")
+plt.tight_layout()
+# plt.show()
+
+result.plot_diagnostics(figsize=(12, 8))
+plt.tight_layout()
+# plt.show()
+
+# 융박스 테스트 - 이건 귀무가 랜덤이므로 0.05보다 작으면 모델을 못쓴단 얘기가 된다...
+# 책과는 다르게, 결과는 df로 나오고, range 안하고 그냥 lag=10 주면 됨...
+lb = acorr_ljungbox(residuals, 10)
+print(lb["lb_pvalue"])
