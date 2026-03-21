@@ -102,3 +102,10 @@ xticks = (
 predicts = test.iloc[:, 1:]
 pred_dict = predicts.to_dict(orient="list")
 draw_predicts(diff_x, diff_y, cut, pred_dict, title, xlabel, ylabel, xticks)
+
+# 8. MSE 비교
+compare_MSE(test[col_name], pred_dict)
+
+# 9. 실제 스케일로 비교
+pred = np.array(pred_ARMA)
+compre_Real_Scale(x, y, "ARMA", cut, pred, title, xlabel, ylabel, xticks)
