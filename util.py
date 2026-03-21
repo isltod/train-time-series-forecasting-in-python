@@ -5,6 +5,7 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
@@ -271,3 +272,40 @@ def draw_predicts(x, y, vs, preds, ttl="Data", xlbl="X", ylbl="Y", xticks=None):
 
     plt.tight_layout()
     plt.show()
+
+
+def compare_MSE(test, preds):
+    mse = {}
+
+    for key, arr in preds.items():
+        mse[key] = mean_squared_error(test, arr)
+        print(f"{key} MSE: {mse[key]}")
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    x = list(mse.keys())
+    y = list(mse.values())
+
+    ax.bar(x, y, width=0.4)
+    ax.set_title("MSE Comparison")
+    ax.set_xlabel("Method")
+    ax.set_ylabel("MSE")
+
+    for i, v in enumerate(y):
+        plt.text(x=i, y=v + 0.25, s=str(round(v, 2)), ha="center")
+
+    plt.tight_layout()
+    plt.show()
+
+
+def compre_Real_Scale(
+    x, y, mdl, cut, pred, ttl="Data", xlbl="X", ylbl="Y", xticks=None
+):
+    start = len(y) - cut
+    undiff_pred = y[start] + pred.cumsum()
+
+    pred_dict = {mdl: undiff_pred}
+    draw_predicts(x, y, cut, pred_dict, ttl, xlbl, ylbl, xticks)
+
+    mae_undiff = mean_absolute_error(y[start:], undiff_pred)
+    print(f"{mdl} MAE: {mae_undiff}")
