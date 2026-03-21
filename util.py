@@ -5,7 +5,11 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.metrics import (
+    mean_squared_error,
+    mean_absolute_error,
+    mean_absolute_percentage_error,
+)
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
@@ -160,7 +164,7 @@ def rolling_forecast(
         return pred_last
 
     # SARIMAX MA, AR, ARMA 모델 예측
-    elif mthd in ["MA", "AR", "ARMA"]:
+    elif mthd in ["MA", "AR", "ARMA", "ARIMA"]:
         pred_SARIMAX = []
 
         for t in tqdm(range(tr_len, total_len, wndw)):
@@ -178,7 +182,9 @@ def rolling_forecast(
 
 
 # endog 매개변수는 pd.Series와 list를 다 받는다는 얘기겠지...
-def optimize_ARMA(endog: Union[pd.Series, list], order_list: list) -> pd.DataFrame:
+def optimize_ARIMA(
+    endog: Union[pd.Series, list], order_list: list, d: int = 0
+) -> pd.DataFrame:
     results = []
     # 주피터 노트북에서는 tqdm_notebook
     for order in tqdm(order_list):
@@ -186,7 +192,7 @@ def optimize_ARMA(endog: Union[pd.Series, list], order_list: list) -> pd.DataFra
             # 하던대로 order는 p, d, q이므로... simple_differencing은 차분 되지 않도록 False
             model = SARIMAX(
                 endog,
-                order=(order[0], 0, order[1]),
+                order=(order[0], d, order[1]),
                 simple_differencing=False,
             )
             # 상태 메시지 표시 안한다...뭐 별 차이가 없는데?
@@ -274,6 +280,22 @@ def draw_predicts(x, y, vs, preds, ttl="Data", xlbl="X", ylbl="Y", xticks=None):
     plt.show()
 
 
+def _bar_error(dict, title, xlabel, ylabel):
+    x = list(dict.keys())
+    y = list(dict.values())
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.bar(x, y, width=0.4)
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    for i, v in enumerate(y):
+        plt.text(x=i, y=v + 1, s=str(round(v, 2)), ha="center")
+
+    plt.tight_layout()
+    plt.show()
+
+
 def compare_MSE(test, preds):
     mse = {}
 
@@ -281,21 +303,28 @@ def compare_MSE(test, preds):
         mse[key] = mean_squared_error(test, arr)
         print(f"{key} MSE: {mse[key]}")
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    _bar_error(mse, "MSE Comparison", "Method", "MSE")
 
-    x = list(mse.keys())
-    y = list(mse.values())
 
-    ax.bar(x, y, width=0.4)
-    ax.set_title("MSE Comparison")
-    ax.set_xlabel("Method")
-    ax.set_ylabel("MSE")
+def compare_MAE(test, preds):
+    mae = {}
 
-    for i, v in enumerate(y):
-        plt.text(x=i, y=v + 0.25, s=str(round(v, 2)), ha="center")
+    for key, arr in preds.items():
+        mae[key] = mean_absolute_error(test, arr)
+        print(f"{key} MAE: {mae[key]}")
 
-    plt.tight_layout()
-    plt.show()
+    _bar_error(mae, "MAE Comparison", "Method", "MAE")
+
+
+def compare_MAPE(test, preds):
+    mape = {}
+
+    for key, arr in preds.items():
+        # mape[key] = np.mean(np.abs((test - arr) / test)) * 100
+        mape[key] = mean_absolute_percentage_error(test, arr) * 100
+        print(f"{key} MAPE: {mape[key]}")
+
+    _bar_error(mape, "MAPE Comparison", "Method", "MAPE")
 
 
 def compre_Real_Scale(
