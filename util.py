@@ -270,16 +270,18 @@ def optimize_SARIMA(
     return result_df
 
 
-def modelling(ts, p, d, q):
+def modelling(ts, p, d, q, P=0, D=0, Q=0, s=0):
     # 모델 적용 결과
-    model = SARIMAX(ts, order=(p, d, q), simple_differencing=False)
+    model = SARIMAX(
+        ts, order=(p, d, q), seasonal_order=(P, D, Q, s), simple_differencing=False
+    )
     result = model.fit()
     return result
 
 
-def analysis_residual(ts, p, d, q):
+def analysis_residual(ts, p, d, q, P=0, D=0, Q=0, s=0):
     # 모델 적용 결과
-    result = modelling(ts, p, d, q)
+    result = modelling(ts, p, d, q, P, D, Q, s)
     print(result.summary())
     # 잔차 분석
     result.plot_diagnostics(figsize=(12, 8))
@@ -288,6 +290,7 @@ def analysis_residual(ts, p, d, q):
     # 융박스 테스트
     lb = acorr_ljungbox(result.resid, 10)
     print(lb["lb_pvalue"])
+    return result
 
 
 def draw_train_test(x, y, vs, dy=None, ttl="Data", xlbl="X", ylbl="Y", xticks=None):
