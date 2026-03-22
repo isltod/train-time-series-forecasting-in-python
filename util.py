@@ -10,9 +10,10 @@ from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
 )
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.tsa.seasonal import seasonal_decompose, STL
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.stattools import adfuller
-from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from tqdm import tqdm
 from typing import Union
 
@@ -27,6 +28,50 @@ def draw_line_chart(x, y, title, xlabel, ylabel, xticks=None):
 
     if xticks is not None:
         plt.xticks(xticks[0], xticks[1])
+    plt.tight_layout()
+    plt.show()
+
+
+def draw_seasonality(x, y, title, xlabel, ylabel, xticks=None, marks=None, vlines=None):
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    if marks is None:
+        ax.plot(x, y)
+    else:
+        ax.plot(x, y, markevery=marks, marker="o", markerfacecolor="r")
+
+    if vlines is not None:
+        for line in vlines:
+            ax.axvline(x=line, linestyle="--", color="black", linewidth=1)
+
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    if xticks is not None:
+        plt.xticks(xticks[0], xticks[1])
+    plt.tight_layout()
+    plt.show()
+
+
+def draw_seasonal_decompose(x, y, period, xticks=None):
+    decomposition = STL(y, period=period).fit()
+    fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True, figsize=(12, 12))
+
+    ax1.plot(x, decomposition.observed, label="Observed")
+    ax2.plot(x, decomposition.trend, label="Trend")
+    ax3.plot(x, decomposition.seasonal, label="Seasonal")
+    # 근데 이게 필요할까?
+    if (decomposition.seasonal.max() < 1) and (decomposition.seasonal.min() > -1):
+        ax3.set_ylim(-1, 1)
+    ax4.plot(x, decomposition.resid, label="Residual")
+    if (decomposition.resid.max() < 1) and (decomposition.resid.min() > -1):
+        ax4.set_ylim(-1, 1)
+
+    if xticks is not None:
+        plt.xticks(xticks[0], xticks[1])
+
+    fig.autofmt_xdate()
     plt.tight_layout()
     plt.show()
 
