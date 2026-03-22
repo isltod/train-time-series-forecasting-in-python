@@ -11,7 +11,8 @@ from sklearn.metrics import (
     mean_absolute_percentage_error,
 )
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-from statsmodels.tsa.seasonal import seasonal_decompose, STL
+from statsmodels.stats.diagnostic import acorr_ljungbox
+from statsmodels.tsa.seasonal import STL
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.stattools import adfuller
 from tqdm import tqdm
@@ -227,20 +228,30 @@ def rolling_forecast(
 
 
 # endog 매개변수는 pd.Series와 list를 다 받는다는 얘기겠지...
-def optimize_ARIMA(
-    endog: Union[pd.Series, list], order_list: list, d: int = 0
+def optimize_SARIMA(
+    endog: Union[pd.Series, list], order_list: list, d: int = 0, D: int = 0, s: int = 0
 ) -> pd.DataFrame:
     results = []
+    num_orders = len(order_list[0])
     # 주피터 노트북에서는 tqdm_notebook
     for order in tqdm(order_list):
         try:
-            # 하던대로 order는 p, d, q이므로... simple_differencing은 차분 되지 않도록 False
-            model = SARIMAX(
-                endog,
-                order=(order[0], d, order[1]),
-                simple_differencing=False,
-            )
-            # 상태 메시지 표시 안한다...뭐 별 차이가 없는데?
+            # ARIMA는 order_list가 2, SARIMA는 4
+            if num_orders == 2:
+                # 하던대로 order는 p, d, q이므로... simple_differencing은 차분 되지 않도록 False
+                model = SARIMAX(
+                    endog,
+                    order=(order[0], d, order[1]),
+                    simple_differencing=False,
+                )
+            elif num_orders == 4:
+                model = SARIMAX(
+                    endog,
+                    order=(order[0], d, order[1]),
+                    seasonal_order=(order[2], D, order[3], s),
+                    simple_differencing=False,
+                )
+            # disp는 상태 메시지 표시 안한다...뭐 별 차이가 없는데?
             result = model.fit(disp=False)
             # AIC 값은 aic 속성에...
             aic = result.aic
@@ -250,10 +261,33 @@ def optimize_ARIMA(
 
     # 결과 리스트로 데이터프레임 만들고, 정렬해서 반환
     result_df = pd.DataFrame(results)
-    result_df.columns = ["(p, q)", "AIC"]
+    if num_orders == 2:
+        result_df.columns = ["(p, q)", "AIC"]
+    elif num_orders == 4:
+        result_df.columns = ["(p, q, P, Q)", "AIC"]
     result_df = result_df.sort_values(by="AIC", ascending=True).reset_index(drop=True)
 
     return result_df
+
+
+def modelling(ts, p, d, q):
+    # 모델 적용 결과
+    model = SARIMAX(ts, order=(p, d, q), simple_differencing=False)
+    result = model.fit()
+    return result
+
+
+def analysis_residual(ts, p, d, q):
+    # 모델 적용 결과
+    result = modelling(ts, p, d, q)
+    print(result.summary())
+    # 잔차 분석
+    result.plot_diagnostics(figsize=(12, 8))
+    plt.tight_layout()
+    plt.show()
+    # 융박스 테스트
+    lb = acorr_ljungbox(result.resid, 10)
+    print(lb["lb_pvalue"])
 
 
 def draw_train_test(x, y, vs, dy=None, ttl="Data", xlbl="X", ylbl="Y", xticks=None):
@@ -274,11 +308,12 @@ def draw_train_test(x, y, vs, dy=None, ttl="Data", xlbl="X", ylbl="Y", xticks=No
 
     # 차분 데이터 있으면 그것도 그리기
     if dy is not None:
-        dx = x[1:]
+        diff = len(y) - len(dy)
+        dx = x[diff:]
         ax2.plot(dx, dy)
         ax2.set_xlabel(xlbl)
         ax2.set_ylabel(ylbl)
-        ax2.axvspan(len(dy) - vs, len(dy), color="#808080", alpha=0.2)
+        ax2.axvspan(len(y) - vs, len(y), color="#808080", alpha=0.2)
 
     # 틱 데이터 있으면...
     if xticks is not None:

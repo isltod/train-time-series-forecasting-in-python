@@ -46,7 +46,7 @@ ps = range(0, 4)
 qs = range(0, 4)
 d = 2
 order_list = list(product(ps, qs))
-result_df = optimize_ARIMA(train, order_list, d)
+result_df = optimize_SARIMA(train, order_list, d)
 print(result_df)
 
 # 잔차분석
