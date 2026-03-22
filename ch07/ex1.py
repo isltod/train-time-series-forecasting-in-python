@@ -28,7 +28,7 @@ test_ADF(df4_diff)
 d = 1
 
 # 2.3 AIC 비교 - 012 아니고 313이 가장 낮은 AIC
-result_df = optimize_ARIMA(train, order_list, d)
+result_df = optimize_SARIMA(train, order_list, d)
 print(result_df)
 
 # 2.4 최소 AIC로 모델 적용하고 잔차 분석 - 적절하면 베이스 모델과 비교
