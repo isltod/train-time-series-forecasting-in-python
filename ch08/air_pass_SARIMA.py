@@ -30,22 +30,23 @@ period = 12
 # lienar_ts = np.arange(0, 144)
 # draw_seasonal_decompose(x, lienar_ts, period, xticks)
 
-# 4. d, D 결정위해 ADF 테스트 - d는 1, D도 1?
-print("ADF Test for Original Data--------------------------")
-test_ADF(y)
+# # 4. d, D 결정위해 ADF 테스트 - d는 1, D도 1?
+# print("ADF Test for Original Data--------------------------")
+# test_ADF(y)
 
-print("ADF Test for 1st Diff Data--------------------------")
-diff = np.diff(y, n=1)
-test_ADF(diff)
+# print("ADF Test for 1st Diff Data--------------------------")
+# diff = np.diff(y, n=1)
+# test_ADF(diff)
 
-print("ADF Test for 2nd Diff Data--------------------------")
-diff2 = np.diff(y, n=2)
-test_ADF(diff2)
-# ARIMA로 돌릴려면 이걸 이용하고...
+# print("ADF Test for 2nd Diff Data--------------------------")
+# diff2 = np.diff(y, n=2)
+# test_ADF(diff2)
+# # ARIMA로 돌릴려면 이걸 이용하고...
 
-print("ADF Test for Seasonal Diff Data---------------------")
-season_diff = np.diff(y, n=period)
-test_ADF(season_diff)
+# 계절성 적분 차수 D는 d와 쌍으로 결정...d=1은 정상성이 없지만, 거기에 D=1을 더하면 stationary...
+# print("ADF Test for Seasonal Diff Data---------------------")
+# season_diff = np.diff(y, n=period)
+# test_ADF(season_diff)
 # SARIMA로 돌릴려면 d=1, D=1 이걸 이용한다...
 
 # 5. 훈련/테스트 분리
@@ -70,14 +71,45 @@ ARIMA_order_list = list(product(ps, qs, Ps, Qs))
 p = 11
 d = 2
 q = 3
-# analysis_residual(train, p, d, q)
+# ARIMA_result = analysis_residual(train, p, d, q)
 
-# 일단...예측 비교를 준비하자...
-# test["naive_seasonal"] = y[-(cut + s) : -cut]
-# print(test)
-# ARIMA_pred = (
-#     modelling(train, p, d, q).get_prediction(len(y) - cut, len(y) - 1).predicted_mean
-# )
-# test["ARIMA"] = ARIMA_pred
-# # 수치가 뭔가 비슷하면서 약간씩 틀리는데...이거 왜 이렇지?
-# print(test)
+# 8. SARIMA AIC 비교해서 잔차 분석
+ps = range(0, 4)
+qs = range(0, 4)
+Ps = range(0, 4)
+Qs = range(0, 4)
+SARIMA_order_list = list(product(ps, qs, Ps, Qs))
+d = 1
+D = 1
+s = period
+# SARIMA_result_df = optimize_SARIMA(train, SARIMA_order_list, d, D, s)
+# print(SARIMA_result_df)
+
+# sel_idx = 0
+# sel = SARIMA_result_df.iloc[sel_idx, 0]
+# p, q, P, Q = sel
+
+p, q, P, Q = 2, 1, 1, 2
+# SARIMA_result = analysis_residual(train, p, d, q, P, D, Q, s)
+
+# 9. 예측 비교
+test["naive_seasonal"] = y[-(cut + s) : -cut]
+p, d, q = 11, 2, 3
+ARIMA_pred = (
+    modelling(train, p, d, q).get_prediction(len(y) - cut, len(y) - 1).predicted_mean
+)
+test["ARIMA"] = ARIMA_pred
+p, d, q = 2, 1, 1
+SARIMA_pred = (
+    modelling(train, p, d, q, P, D, Q, s)
+    .get_prediction(len(y) - cut, len(y) - 1)
+    .predicted_mean
+)
+test["SARIMA"] = SARIMA_pred
+
+# 수치가 뭔가 비슷하면서 약간씩 틀리는데...이거 왜 이렇지?
+print(test)
+
+pred_dict = test.iloc[:, 1:].to_dict(orient="list")
+draw_predicts(x, y, cut, pred_dict)
+compare_MAPE(test[col_name], pred_dict)
