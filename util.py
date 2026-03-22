@@ -173,7 +173,14 @@ def test_sationary(x, y, title="Data", xlabel="X", ylabel="Y", xticks=None):
 
 
 def rolling_forecast(
-    ts: np.ndarray, tr_len: int, hrizn: int, wndw: int, mthd: str, ordr=None
+    ts: np.ndarray,
+    trn_len: int,
+    hrzn: int,
+    wndw: int,
+    mthd: str,
+    ordr=None,
+    ssnl_ordr=None,
+    exog=None,
 ) -> list:
     """
     ts: 전체 시계열,
@@ -184,14 +191,14 @@ def rolling_forecast(
     order: SARIMAX order 튜플
     return: 예측값 리스트
     """
-    total_len = tr_len + hrizn
+    total_len = trn_len + hrzn
 
     # 평균값 예측 방법
     if mthd == "mean":
         pred_mean = []
 
         # train 끝/test 시작에서 시작, 총 갯수에서 끝, window 크기(2)만큼 증가
-        for t in range(tr_len, total_len, wndw):
+        for t in range(trn_len, total_len, wndw):
             mean = np.mean(ts[:t])
             # 요 코드가 더 효율적일 거 같다...
             pred_mean.extend([mean] * wndw)
@@ -205,7 +212,7 @@ def rolling_forecast(
     elif mthd == "last":
         pred_last = []
 
-        for t in range(tr_len, total_len, wndw):
+        for t in range(trn_len, total_len, wndw):
             # diff[t - 1]로 해도 되지만 좀 더 명확하게 처음부터 t-1개 까지의 마지막 원소
             last_value = ts[:t][-1]
             # 2개씩 넘어가고, 2칸씩 채우고...
@@ -214,16 +221,26 @@ def rolling_forecast(
         return pred_last
 
     # SARIMAX MA, AR, ARMA 모델 예측
-    elif mthd in ["MA", "AR", "ARMA", "ARIMA"]:
+    elif mthd in ["MA", "AR", "ARMA", "ARIMA", "SARIMA", "SARIMAX"]:
         pred_SARIMAX = []
 
-        for t in tqdm(range(tr_len, total_len, wndw)):
+        for t in tqdm(range(trn_len, total_len, wndw)):
             # order는 p, d, q인데, 자기회귀 차수 p도 0, 차분 d도 0? 이동 평균 차수만 넣는다?
             # 그럼 p, d는 아예 원 데이터를 넣고 돌릴 때 지정하는 건가?
-            model = SARIMAX(ts[:t], order=ordr)
+            model = SARIMAX(
+                ts[:t],
+                exog=exog[:t],
+                order=ordr,
+                seasonal_order=ssnl_ordr,
+                simple_differencing=False,
+            )
             res = model.fit(disp=False)
-            # 학습 후 예측인데, 0에서 시작, 마지막 원소 (t - 1) 이후로 window 크기 2만큼 예측
-            pred = res.get_prediction(0, (t - 1) + wndw)
+            if exog is None:
+                # 학습 후 예측인데, 0에서 시작, 마지막 원소 (t - 1) 이후로 window 크기 2만큼 예측
+                pred = res.get_prediction(0, (t - 1) + wndw)
+            else:
+                # 외생변수 있을 때는 아예 모양이 달라지네...
+                pred = res.get_prediction(exog=exog)
             # 예측 값은 predicted_mean 리스트에 들어있고, 그 마지막 2개가 예측값
             oos_pred = pred.predicted_mean[-wndw:]
             pred_SARIMAX.extend(oos_pred)
@@ -233,7 +250,12 @@ def rolling_forecast(
 
 # endog 매개변수는 pd.Series와 list를 다 받는다는 얘기겠지...
 def optimize_SARIMA(
-    endog: Union[pd.Series, list], order_list: list, d: int = 0, D: int = 0, s: int = 0
+    endog: Union[pd.Series, list],
+    order_list: list,
+    d: int = 0,
+    D: int = 0,
+    s: int = 0,
+    exog: Union[pd.Series, list] = None,
 ) -> pd.DataFrame:
     results = []
     num_orders = len(order_list[0])
@@ -251,6 +273,7 @@ def optimize_SARIMA(
             elif num_orders == 4:
                 model = SARIMAX(
                     endog,
+                    exog=exog,
                     order=(order[0], d, order[1]),
                     seasonal_order=(order[2], D, order[3], s),
                     simple_differencing=False,
@@ -274,18 +297,22 @@ def optimize_SARIMA(
     return result_df
 
 
-def modelling(ts, p, d, q, P=0, D=0, Q=0, s=0):
+def modelling(ts, p, d, q, P=0, D=0, Q=0, s=0, exog=None):
     # 모델 적용 결과
     model = SARIMAX(
-        ts, order=(p, d, q), seasonal_order=(P, D, Q, s), simple_differencing=False
+        ts,
+        order=(p, d, q),
+        exog=exog,
+        seasonal_order=(P, D, Q, s),
+        simple_differencing=False,
     )
     result = model.fit()
     return result
 
 
-def analysis_residual(ts, p, d, q, P=0, D=0, Q=0, s=0):
+def analysis_residual(ts, p, d, q, P=0, D=0, Q=0, s=0, exog=None):
     # 모델 적용 결과
-    result = modelling(ts, p, d, q, P, D, Q, s)
+    result = modelling(ts, p, d, q, P, D, Q, s, exog)
     print(result.summary())
     # 잔차 분석
     result.plot_diagnostics(figsize=(12, 8))
@@ -375,9 +402,10 @@ def _bar_error(dict, title, xlabel, ylabel):
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    ax.set_ylim(0, max(y) * 1.5)
 
     for i, v in enumerate(y):
-        plt.text(x=i, y=v + 1, s=str(round(v, 2)), ha="center")
+        plt.text(x=i, y=v * 1.1, s=str(round(v, 2)), ha="center")
 
     plt.tight_layout()
     plt.show()
