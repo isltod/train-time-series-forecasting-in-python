@@ -59,13 +59,17 @@ def draw_seasonal_decompose(x, y, period, xticks=None):
     decomposition = STL(y, period=period).fit()
     fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True, figsize=(12, 12))
 
-    ax1.plot(x, decomposition.observed, label="Observed")
-    ax2.plot(x, decomposition.trend, label="Trend")
-    ax3.plot(x, decomposition.seasonal, label="Seasonal")
+    ax1.plot(x, decomposition.observed)
+    ax1.set_ylabel("Observed")
+    ax2.plot(x, decomposition.trend)
+    ax2.set_ylabel("Trend")
+    ax3.plot(x, decomposition.seasonal)
+    ax3.set_ylabel("Seasonal")
     # 근데 이게 필요할까?
     if (decomposition.seasonal.max() < 1) and (decomposition.seasonal.min() > -1):
         ax3.set_ylim(-1, 1)
-    ax4.plot(x, decomposition.resid, label="Residual")
+    ax4.plot(x, decomposition.resid)
+    ax4.set_ylabel("Residual")
     if (decomposition.resid.max() < 1) and (decomposition.resid.min() > -1):
         ax4.set_ylim(-1, 1)
 
