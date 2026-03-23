@@ -96,12 +96,14 @@ p, q, P, Q = 2, 1, 1, 2
 test["naive_seasonal"] = y[-(cut + s) : -cut]
 p, d, q = 11, 2, 3
 ARIMA_pred = (
-    modelling(train, p, d, q).get_prediction(len(y) - cut, len(y) - 1).predicted_mean
+    model_SARIMAX(train, p, d, q)
+    .get_prediction(len(y) - cut, len(y) - 1)
+    .predicted_mean
 )
 test["ARIMA"] = ARIMA_pred
 p, d, q = 2, 1, 1
 SARIMA_pred = (
-    modelling(train, p, d, q, P, D, Q, s)
+    model_SARIMAX(train, p, d, q, P, D, Q, s)
     .get_prediction(len(y) - cut, len(y) - 1)
     .predicted_mean
 )
@@ -111,5 +113,5 @@ test["SARIMA"] = SARIMA_pred
 print(test)
 
 pred_dict = test.iloc[:, 1:].to_dict(orient="list")
-draw_predicts(x, y, cut, pred_dict)
+draw_pred_vec(x, y, cut, pred_dict)
 compare_MAPE(test[col_name], pred_dict)

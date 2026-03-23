@@ -83,9 +83,9 @@ TRAIN_LEN = len(train)
 HORIZON = len(test)
 WINDOW = 2
 
-pred_mean = rolling_forecast(diff_y, TRAIN_LEN, HORIZON, WINDOW, "mean")
-pred_last = rolling_forecast(diff_y, TRAIN_LEN, HORIZON, WINDOW, "last")
-pred_ARMA = rolling_forecast(diff_y, TRAIN_LEN, HORIZON, WINDOW, "ARMA", (2, 0, 2))
+pred_mean = roll_fore_vec(diff_y, TRAIN_LEN, HORIZON, WINDOW, "mean")
+pred_last = roll_fore_vec(diff_y, TRAIN_LEN, HORIZON, WINDOW, "last")
+pred_ARMA = roll_fore_vec(diff_y, TRAIN_LEN, HORIZON, WINDOW, "ARMA", (2, 0, 2))
 
 test["pred_mean"] = pred_mean
 test["pred_last"] = pred_last
@@ -101,7 +101,7 @@ xticks = (
 # 예측 결과를 원래 데이터와 그리려면 예측 결과 df를 딕셔너리로 만들어 보내기...
 predicts = test.iloc[:, 1:]
 pred_dict = predicts.to_dict(orient="list")
-draw_predicts(diff_x, diff_y, cut, pred_dict, title, xlabel, ylabel, xticks)
+draw_pred_vec(diff_x, diff_y, cut, pred_dict, title, xlabel, ylabel, xticks)
 
 # 8. MSE 비교
 compare_MSE(test[col_name], pred_dict)

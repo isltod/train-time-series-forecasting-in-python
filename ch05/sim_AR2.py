@@ -45,7 +45,7 @@ TRAIN_LEN = len(train)
 HORIZON = len(test)
 WINDOW = 2
 
-pred_AR2 = rolling_forecast(AR2_process, TRAIN_LEN, HORIZON, WINDOW, "AR", (2, 0, 0))
+pred_AR2 = roll_fore_vec(AR2_process, TRAIN_LEN, HORIZON, WINDOW, "AR", (2, 0, 0))
 
 test["pred_AR2"] = pred_AR2
 
