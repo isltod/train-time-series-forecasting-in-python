@@ -14,6 +14,7 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.seasonal import STL
 from statsmodels.tsa.statespace.sarimax import SARIMAX
+from statsmodels.tsa.statespace.varmax import VARMAX
 from statsmodels.tsa.stattools import adfuller
 from tqdm import tqdm
 from typing import Union
@@ -29,6 +30,25 @@ def draw_line_chart(x, y, title, xlabel, ylabel, xticks=None):
 
     if xticks is not None:
         plt.xticks(xticks[0], xticks[1])
+    plt.tight_layout()
+    plt.show()
+
+
+def draw_2line_chart(x, y1, y2, title1, title2, xticks=None):
+    fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(12, 12))
+
+    ax1.plot(x, y1)
+    ax1.set_title(title1)
+    ax1.spines["top"].set_visible(False)
+
+    ax2.plot(x, y2)
+    ax2.set_title(title2)
+    ax2.spines["top"].set_visible(False)
+
+    if xticks is not None:
+        plt.xticks(xticks[0], xticks[1])
+
+    fig.autofmt_xdate()
     plt.tight_layout()
     plt.show()
 
@@ -172,7 +192,42 @@ def test_sationary(x, y, title="Data", xlabel="X", ylabel="Y", xticks=None):
     draw_auto_corr(diff_df)
 
 
-def rolling_forecast(
+def roll_fore_mat(
+    ts: pd.DataFrame, trn_len: int, hrzn: int, wndw: int, mthd: str, order=None
+) -> list:
+    total_len = trn_len + hrzn
+    end_idx = trn_len
+
+    cols = ts.columns
+
+    if mthd == "last":
+        pred_last = {}
+        for col in cols:
+            pred_last[col] = []
+
+        for t in range(trn_len, total_len, wndw):
+            for col in cols:
+                last_value = ts[:t].iloc[-1][col]
+                pred_last[col].extend([last_value] * wndw)
+
+        return pred_last
+
+    elif mthd == "VAR":
+        pred_VAR = {}
+        for col in cols:
+            pred_VAR[col] = []
+
+        for t in range(trn_len, total_len, wndw):
+            res = model_VARMAX(ts[:t], order)
+            preds = res.get_prediction(0, (t - 1) + wndw)
+            for col in cols:
+                oos_pred = preds.predicted_mean.iloc[-wndw:][col]
+                pred_VAR[col].extend(oos_pred)
+
+        return pred_VAR
+
+
+def roll_fore_vec(
     ts: np.ndarray,
     trn_len: int,
     hrzn: int,
@@ -297,7 +352,46 @@ def optimize_SARIMA(
     return result_df
 
 
-def modelling(ts, p, d, q, P=0, D=0, Q=0, s=0, exog=None):
+def model_VARMAX(endog, order):
+    return VARMAX(endog, order=(order, 0)).fit(disp=False)
+
+
+def optimize_VARMAX(endog: Union[pd.Series, list], max_order: int) -> pd.DataFrame:
+    results = []
+    for order in tqdm(range(max_order)):
+        try:
+            model = model_VARMAX(endog, order)
+            aic = model.aic
+            results.append([order, aic])
+        except:
+            continue
+
+    result_df = pd.DataFrame(results)
+    result_df.columns = ["p", "AIC"]
+    result_df = result_df.sort_values(by="AIC", ascending=True).reset_index(drop=True)
+
+    return result_df
+
+
+def resid_VARMAX(endog, order):
+    result = model_VARMAX(endog, order)
+    print(result.summary())
+
+    cols = result.resid.columns
+    for i in range(len(cols)):
+        result.plot_diagnostics(figsize=(12, 8), variable=i)
+        plt.tight_layout()
+        plt.show()
+
+    for col in cols:
+        print("Ljung-Box Test for " + col + " ----------------------------")
+        lb = acorr_ljungbox(result.resid[col], 10)
+        print(lb["lb_pvalue"])
+
+    return result
+
+
+def model_SARIMAX(ts, p, d, q, P=0, D=0, Q=0, s=0, exog=None):
     # 모델 적용 결과
     model = SARIMAX(
         ts,
@@ -310,9 +404,9 @@ def modelling(ts, p, d, q, P=0, D=0, Q=0, s=0, exog=None):
     return result
 
 
-def analysis_residual(ts, p, d, q, P=0, D=0, Q=0, s=0, exog=None):
+def resid_SARIMAX(ts, p, d, q, P=0, D=0, Q=0, s=0, exog=None):
     # 모델 적용 결과
-    result = modelling(ts, p, d, q, P, D, Q, s, exog)
+    result = model_SARIMAX(ts, p, d, q, P, D, Q, s, exog)
     print(result.summary())
     # 잔차 분석
     result.plot_diagnostics(figsize=(12, 8))
@@ -357,7 +451,7 @@ def draw_train_test(x, y, vs, dy=None, ttl="Data", xlbl="X", ylbl="Y", xticks=No
     plt.show()
 
 
-def draw_predicts(x, y, vs, preds, ttl="Data", xlbl="X", ylbl="Y", xticks=None):
+def draw_pred_vec(x, y, vs, preds, ttl="Data", xlbl="X", ylbl="Y", xticks=None):
     symb = ["b-", "g:", "r-.", "k--", "y-"]
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -389,6 +483,43 @@ def draw_predicts(x, y, vs, preds, ttl="Data", xlbl="X", ylbl="Y", xticks=None):
     # x축 범위를 예측 주변으로...밑에
     test_start = len(y) - int(vs * 1.2)
     ax.set_xlim(test_start, len(y))
+
+    plt.tight_layout()
+    plt.show()
+
+
+def draw_pred_mat(x, ys, vs, preds, ttl="Data", xlbl="X", ylbl="Y", xticks=None):
+    symb = ["b-", "g:", "r-.", "k--", "y-"]
+    fig, axs = plt.subplots(figsize=(12, 6 * len(ys)), ncols=1, nrows=len(ys))
+
+    # 여기 preds는 [{}, {}] 꼴로 ys와 같은 순서로 사전이 들어있다고 가정...
+    # 예측 사전들 돌면서 예측들 그리기
+    for i in range(len(ys)):
+        # 차트 기본형 그리고
+        axs[i].plot(x, ys[i], symb[0], label="Actual")
+
+        cnt = 1
+        test_start = len(ys[i]) - vs
+        pred_dict = preds[i]
+        for key, pred in pred_dict.items():
+            axs[i].plot(x[test_start:], pred, symb[cnt], label=key)
+            cnt += 1
+            if cnt == len(symb):
+                cnt = 1
+
+        # 범례, 제목, 라벨 등
+        axs[i].legend(loc=2)
+        axs[i].set_title(ttl[i])
+        axs[i].set_xlabel(xlbl)
+        axs[i].set_ylabel(ylbl[i])
+
+        # 예측 부분 반전, 범위 한정 등
+        if xticks is not None:
+            axs[i].set_xticks(xticks[0])
+            axs[i].set_xticklabels(xticks[1])
+        axs[i].axvspan(test_start, len(ys[i]), color="#808080", alpha=0.2)
+        test_start = len(ys[i]) - int(vs * 1.2)
+        plt.xlim(test_start, len(ys[i]))
 
     plt.tight_layout()
     plt.show()
@@ -449,7 +580,7 @@ def compre_Real_Scale(
     undiff_pred = y[start] + pred.cumsum()
 
     pred_dict = {mdl: undiff_pred}
-    draw_predicts(x, y, cut, pred_dict, ttl, xlbl, ylbl, xticks)
+    draw_pred_vec(x, y, cut, pred_dict, ttl, xlbl, ylbl, xticks)
 
     mae_undiff = mean_absolute_error(y[start:], undiff_pred)
     print(f"{mdl} MAE: {mae_undiff}")

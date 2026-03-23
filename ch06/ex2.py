@@ -58,9 +58,9 @@ TRAIN_LEN = len(train)
 HORIZON = len(test)
 WINDOW = 2
 
-pred_mean = rolling_forecast(ARMA_2_2, TRAIN_LEN, HORIZON, WINDOW, "mean")
-pred_last = rolling_forecast(ARMA_2_2, TRAIN_LEN, HORIZON, WINDOW, "last")
-pred_AR = rolling_forecast(ARMA_2_2, TRAIN_LEN, HORIZON, WINDOW, "ARMA", (2, 0, 2))
+pred_mean = roll_fore_vec(ARMA_2_2, TRAIN_LEN, HORIZON, WINDOW, "mean")
+pred_last = roll_fore_vec(ARMA_2_2, TRAIN_LEN, HORIZON, WINDOW, "last")
+pred_AR = roll_fore_vec(ARMA_2_2, TRAIN_LEN, HORIZON, WINDOW, "ARMA", (2, 0, 2))
 
 df = pd.DataFrame({"value": test})
 df["pred_mean"] = pred_mean
@@ -72,7 +72,7 @@ print(df.head())
 # 11. 예측 결과 그리기
 preds = df.iloc[:, 1:]
 pred_dict = preds.to_dict(orient="list")
-draw_predicts(np.arange(len(ARMA_2_2)), ARMA_2_2, len(test), pred_dict)
+draw_pred_vec(np.arange(len(ARMA_2_2)), ARMA_2_2, len(test), pred_dict)
 
 # 12. MSE 비교
 compare_MSE(df["value"], pred_dict)

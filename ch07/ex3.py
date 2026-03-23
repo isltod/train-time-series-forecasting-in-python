@@ -52,9 +52,9 @@ HORIZON = len(test)
 WINDOW = 2
 ts = df6[col_name].to_numpy()
 
-pred_mean = rolling_forecast(ts, TRAIN_LEN, HORIZON, WINDOW, "mean")
-pred_last = rolling_forecast(ts, TRAIN_LEN, HORIZON, WINDOW, "last")
-pred_ARIMA = rolling_forecast(ts, TRAIN_LEN, HORIZON, WINDOW, "ARIMA", (p, d, q))
+pred_mean = roll_fore_vec(ts, TRAIN_LEN, HORIZON, WINDOW, "mean")
+pred_last = roll_fore_vec(ts, TRAIN_LEN, HORIZON, WINDOW, "last")
+pred_ARIMA = roll_fore_vec(ts, TRAIN_LEN, HORIZON, WINDOW, "ARIMA", (p, d, q))
 
 test["pred_mean"] = pred_mean
 test["pred_last"] = pred_last
@@ -65,7 +65,7 @@ print(test.head())
 # 2.6 예측 결과 그리기
 preds = test.iloc[:, 1:]
 pred_dict = preds.to_dict(orient="list")
-draw_predicts(np.arange(len(df6)), df6[col_name], len(test), pred_dict)
+draw_pred_vec(np.arange(len(df6)), df6[col_name], len(test), pred_dict)
 
 # 2.7 MSE 비교
 compare_MAE(test[col_name], pred_dict)

@@ -46,7 +46,7 @@ p, q, P, Q = 3, 3, 0, 0
 print("p:", p, "q:", q, "P:", P, "Q:", Q)
 
 # 4. 잔차 분석
-result = analysis_residual(target_train, p, d, q, P, D, Q, s, exog_train)
+result = resid_SARIMAX(target_train, p, d, q, P, D, Q, s, exog_train)
 
 # 5. 예측 - 여긴 rolling forecast
 cut = 196
@@ -57,8 +57,8 @@ TRAIN_LEN = len(target_train)
 HORIZON = len(target_test)
 WINDOW = 1
 
-pred_last = rolling_forecast(target, TRAIN_LEN, HORIZON, WINDOW, "last")
-pred_SARIMAX = rolling_forecast(
+pred_last = roll_fore_vec(target, TRAIN_LEN, HORIZON, WINDOW, "last")
+pred_SARIMAX = roll_fore_vec(
     target, TRAIN_LEN, HORIZON, WINDOW, "SARIMAX", (p, d, q), (P, D, Q, s), exog
 )
 pred_df = pd.DataFrame({"actual": target_test})
@@ -72,4 +72,4 @@ print(predicts)
 pred_dict = predicts.to_dict(orient="list")
 compare_MAPE(target_test, pred_dict)
 vs = len(target) - cut
-draw_predicts(np.arange(len(target)), target, vs, pred_dict)
+draw_pred_vec(np.arange(len(target)), target, vs, pred_dict)

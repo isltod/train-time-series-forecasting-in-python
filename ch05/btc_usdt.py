@@ -44,10 +44,10 @@ HORIZON = len(test)
 # 윈도우 크기는 어떻게 정하는거야?
 WINDOW = 3
 
-pred_mean = rolling_forecast(btc, TRAIN_LEN, HORIZON, WINDOW, "mean")
-pred_last = rolling_forecast(btc, TRAIN_LEN, HORIZON, WINDOW, "last")
+pred_mean = roll_fore_vec(btc, TRAIN_LEN, HORIZON, WINDOW, "mean")
+pred_last = roll_fore_vec(btc, TRAIN_LEN, HORIZON, WINDOW, "last")
 # 그냥 마지막 값 예측과 거의 같네...조건을 만족하질 못해서 그런가?
-pred_AR = rolling_forecast(btc, TRAIN_LEN, HORIZON, WINDOW, "AR", (3, 0, 0))
+pred_AR = roll_fore_vec(btc, TRAIN_LEN, HORIZON, WINDOW, "AR", (3, 0, 0))
 
 test["pred_mean"] = pred_mean
 test["pred_last"] = pred_last

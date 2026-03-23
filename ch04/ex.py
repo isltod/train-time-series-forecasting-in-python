@@ -41,9 +41,9 @@ test = df.iloc[800:]
 TRAIN_LEN = len(train)
 HORIZON = len(test)
 WINDOW = 2
-pred_mean = rolling_forecast(MA2_process, TRAIN_LEN, HORIZON, WINDOW, "mean")
-pred_last = rolling_forecast(MA2_process, TRAIN_LEN, HORIZON, WINDOW, "last")
-pred_MA = rolling_forecast(MA2_process, TRAIN_LEN, HORIZON, WINDOW, "MA")
+pred_mean = roll_fore_vec(MA2_process, TRAIN_LEN, HORIZON, WINDOW, "mean")
+pred_last = roll_fore_vec(MA2_process, TRAIN_LEN, HORIZON, WINDOW, "last")
+pred_MA = roll_fore_vec(MA2_process, TRAIN_LEN, HORIZON, WINDOW, "MA")
 
 # 7. 모델 결과 비교 차트...아직은 모듈화 좀 어렵네...일단 한 번 더 만들어보자...
 # 그 중 테스트에 모델 결과 붙이고...
