@@ -275,6 +275,16 @@ def roll_fore_vec(
 
         return pred_last
 
+    # 마지막 계절성 반복
+    elif mthd == "last_season":
+        pred_last_season = []
+
+        for t in range(trn_len, total_len, wndw):
+            last_season = ts[t - wndw : t]
+            pred_last_season.extend(last_season)
+
+        return pred_last_season
+
     # SARIMAX MA, AR, ARMA 모델 예측
     elif mthd in ["MA", "AR", "ARMA", "ARIMA", "SARIMA", "SARIMAX"]:
         pred_SARIMAX = []
@@ -282,18 +292,23 @@ def roll_fore_vec(
         for t in tqdm(range(trn_len, total_len, wndw)):
             # order는 p, d, q인데, 자기회귀 차수 p도 0, 차분 d도 0? 이동 평균 차수만 넣는다?
             # 그럼 p, d는 아예 원 데이터를 넣고 돌릴 때 지정하는 건가?
-            model = SARIMAX(
-                ts[:t],
-                exog=exog[:t],
-                order=ordr,
-                seasonal_order=ssnl_ordr,
-                simple_differencing=False,
-            )
-            res = model.fit(disp=False)
             if exog is None:
+                res = SARIMAX(
+                    ts[:t],
+                    order=ordr,
+                    seasonal_order=ssnl_ordr,
+                    simple_differencing=False,
+                ).fit(disp=False)
                 # 학습 후 예측인데, 0에서 시작, 마지막 원소 (t - 1) 이후로 window 크기 2만큼 예측
                 pred = res.get_prediction(0, (t - 1) + wndw)
             else:
+                res = SARIMAX(
+                    ts[:t],
+                    exog=exog[:t],
+                    order=ordr,
+                    seasonal_order=ssnl_ordr,
+                    simple_differencing=False,
+                ).fit(disp=False)
                 # 외생변수 있을 때는 아예 모양이 달라지네...
                 pred = res.get_prediction(exog=exog)
             # 예측 값은 predicted_mean 리스트에 들어있고, 그 마지막 2개가 예측값
