@@ -19,6 +19,15 @@ from statsmodels.tsa.stattools import adfuller
 from tqdm import tqdm
 from typing import Union
 
+import torch
+import tensorflow as tf
+from keras import Model, Sequential
+from keras.optimizers import Adam
+from keras.callbacks import EarlyStopping
+from keras.losses import MeanSquaredError
+from keras.metrics import MeanAbsoluteError
+from keras.layers import Dense, Conv1D, LSTM, Lambda, Reshape, RNN, LSTMCell
+
 
 def draw_line_chart(x, y, title, xlabel, ylabel, xticks=None):
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -599,3 +608,215 @@ def compre_Real_Scale(
 
     mae_undiff = mean_absolute_error(y[start:], undiff_pred)
     print(f"{mdl} MAE: {mae_undiff}")
+
+
+class DataWindow:
+    def __init__(
+        self,
+        input_width,
+        label_width,
+        shift,
+        train_df,
+        val_df,
+        test_df,
+        label_columns=None,
+    ):
+        self.train_df = train_df
+        self.val_df = val_df
+        self.test_df = test_df
+
+        # 이게 예측하고자 하는 열의 이름이라고...
+        self.label_columns = label_columns
+        # 번호: 이름을 이름: 번호로...
+        if label_columns is not None:
+            # 이건 도식화에 사용? 그래프 그린다는 말인가?
+            self.label_columns_indices = {
+                name: i for i, name in enumerate(label_columns)
+            }
+        # 대상 변수에서 특징을 분리할 때 사용? 뭔 소린지...
+        self.column_indices = {name: i for i, name in enumerate(train_df.columns)}
+
+        self.input_width = input_width
+        self.label_width = label_width
+        self.shift = shift
+
+        self.total_window_size = input_width + shift
+
+        # 0~input_width 슬라이스 만들어서 밑에 줄에서 사용
+        self.input_slice = slice(0, input_width)
+        # 0~(input_width + shift)까지 리스트 만들고, 다시 0~input_width까지 잘라?
+        # 그냥 애초에 np.arange(input_width)하면 될걸 왜 이렇게 하지?
+        self.input_indices = np.arange(self.total_window_size)[self.input_slice]
+
+        # (total_window_size+shif) 만큼의 리스트에서 앞쪽 0~input_width는 input_indices로,
+        # shift~마지막까지는 label_indices로...
+        self.label_start = self.total_window_size - self.label_width
+        self.labels_slice = slice(self.label_start, None)
+        self.label_indices = np.arange(self.total_window_size)[self.labels_slice]
+
+    # 일단 입력과 라벨로 나눈다는 얘기 같은데...
+    # 짐작하기에 0~24 데이터 주면 0~23은 입력, 1~24는 정답지로 나눠서,
+    # 0-1, 1-2, ... 뭐 이렇게 돌리겠다는 거 같긴 한데...
+    def split_to_inputs_labels(self, features):
+        # 배치 처리로 데이터가 3차원이 되나? 마지막 차원은 뭐지? 아래는 다 모르겠는데...뭐 하는건지?
+        # 아무튼 데이터와 라벨에서 필요한 부분을 잘라내는데...
+        # input_slice = (처음, input_width)
+        inputs = features[:, self.input_slice, :]
+        # labels_slice = (label_start, 끝)
+        labels = features[:, self.labels_slice, :]
+        # 라벨 df의 컬럼명이 있었다면 -> 이게 예측 목표가 2개 이상이라는 뜻이라는데...
+        if self.label_columns is not None:
+            # 아무튼 그걸 마지막 차원을 기준으로 이어붙이는데...
+            labels = tf.stack(
+                # 두 번째가 아니라 마지막 차원이 라벨 컬럼 인덱스로 바뀌어? 뭐지 이게?
+                [
+                    labels[:, :, self.column_indices[name]]
+                    for name in self.label_columns
+                ],
+                axis=-1,
+            )
+        # 그리고 그걸 다시 input_width와 label_width를 중심으로 차원을 조정해?
+        # 일단 각 차원은 batch, time, feature라는데...
+        inputs.set_shape([None, self.input_width, None])
+        labels.set_shape([None, self.label_width, None])
+
+        return inputs, labels
+
+    def plot(self, model=None, plot_col="traffic_volume", max_subplots=3):
+        # 맨 밑에 @property로 정의한 속성인데...밑에보면 그냥 train에서 값을 하나 읽어오는 건데...
+        # 왜 여기는 (inputs, labels) 이렇게 들어있다는 거지?
+        inputs, labels = self.sample_batch
+
+        plt.figure(figsize=(12, 8))
+        # plot_col로 그리려는 컬럼을 인덱스로 만들고...
+        plot_col_index = self.column_indices[plot_col]
+
+        # 부분 차트의 최대 갯수는 입력 데이터 갯수와 max_subplots 지정 숫자 중에 적은 것으로...반복해서
+        max_n = min(max_subplots, len(inputs))
+        for n in range(max_n):
+            # 일단, 3행 1열 구조는 안 변하고, 위에서 아래로 추가해가는 모양...
+            plt.subplot(3, 1, n + 1)
+            plt.ylabel(f"{plot_col} [scaled]")
+            # 이건 입력 데이터 그리기...
+            plt.plot(
+                self.input_indices,
+                # 뭐지? 이것도 batch, time, column 구존가? 일단 마지막은 맞는데...
+                # 그렇다면 특정 배치, 특정 속성을 시간 그래프로 그리기...
+                # 그럼 왜 배치를 3개까지만 그리지?
+                inputs[n, :, plot_col_index],
+                label="Inputs",
+                marker=".",
+                zorder=-10,
+            )
+
+            # 라벨 컬럼 이름 리스트가 있다는 건, 예측할 필드가 2 이상이라는 얘기?
+            if self.label_columns:
+                # 2 이상이라면 그 중 뭔지 라벨 컬럼 딕셔너리에서 찾고
+                label_col_index = self.label_columns_indices.get(plot_col, None)
+            else:
+                # 아니고 하나라면 그냥 그 인덱스 사용한다...
+                label_col_index = plot_col_index
+
+            # 근데 인덱스가 없어? 문제인데 그냥 지나가 버린다...
+            if label_col_index is None:
+                continue
+            # 라벨은 scatter로 뿌린다..이건 정답인가 아닌가...
+            # 일단 위에 입력 데이터와 같은 모양으로, 특정 배치, 특정 속성을 시간 그래프로 그리기...
+            plt.scatter(
+                self.label_indices,
+                labels[n, :, label_col_index],
+                edgecolors="k",
+                marker="s",
+                label="Labels",
+                c="#2ca02c",
+                s=64,
+            )
+
+            # 모델이 지정되어 있다면 그 예측 값을 또한 그리는 모양인데...
+            if model is not None:
+                predictions = model(inputs)
+                plt.scatter(
+                    self.label_indices,
+                    predictions[n, :, label_col_index],
+                    marker="X",
+                    edgecolors="k",
+                    label="Predictions",
+                    c="#ff7f0e",
+                    s=64,
+                )
+
+            # 처음 반복에서만 레전드 넣고...마지막이 아니어도 되나?
+            if n == 0:
+                plt.legend()
+
+        # x축 이름은 마지막에? 먼저 하면 안되나?
+        plt.xlabel("Time [h]")
+
+    def make_dataset(self, data):
+        data = np.array(data, dtype=np.float32)
+        ds = tf.keras.preprocessing.timeseries_dataset_from_array(
+            data=data,
+            targets=None,
+            sequence_length=self.total_window_size,
+            sequence_stride=1,
+            shuffle=True,
+            batch_size=32,
+        )
+        ds = ds.map(self.split_to_inputs_labels)
+        return ds
+
+    # 클래스 메서드를 인스턴스 변수처럼 읽게 - 게터로 사용...세터는 @<name>.setter 형태로...
+    @property
+    def train(self):
+        return self.make_dataset(self.train_df)
+
+    @property
+    def val(self):
+        return self.make_dataset(self.val_df)
+
+    @property
+    def test(self):
+        return self.make_dataset(self.test_df)
+
+    @property
+    def sample_batch(self):
+        # getattr는 객체 self 에서 _sample_batch 속성(필드나 메서드)을 불러오는 함수...
+        result = getattr(self, "_sample_batch", None)
+        # 즉 _sample_batch란 속성이 지정되어 있지 않다면...
+        if result is None:
+            # train df를 Iterable로 만들고, 다음 값을 하나 next로 받아와서
+            result = next(iter(self.train))
+            # 그걸로 _sample_batch 속성을 만든다...
+            self._sample_batch = result
+
+        # 즉, train에서 값을 하나 읽어서 _sample_batch 속성에 저장해놓고 반환하고,
+        # 다음부터는 _sample_batch 저장된 그 값을 반환하는데,
+        # 어떤 이유건 _sample_batch 속성이 없거나 사라졌다면, train에서 이전에 읽었던 값 다음 값을 반환
+        return result
+
+
+class Baseline(Model):
+    def __init__(self, label_index=None):
+        super().__init__()
+        self.label_index = label_index
+
+    def call(self, inputs):
+        # 일단 세 갈래인데...우선 label_index 없으면 그냥 inputs 반환
+        if self.label_index is None:
+            return inputs
+        # 아니고 label_index 있으면, 그게 list 인스턴스인지 봐서...
+        if isinstance(self.label_index, list):
+            tensors = []
+            # 리스트니까 뭔가 돌면서..
+            for index in self.label_index:
+                # 앞에 두 차원은 그대로, 마지막 차원은 같은 index의 inputs 값들을 받고
+                result = inputs[:, :, index]
+                # 그리고 세 번째 차원을 추가? 이미 위에서 3차원 받는거 아닌가?
+                result = result[:, :, tf.newaxis]
+                tensors.append(result)
+            aa = tf.concat(tensors, axis=-1)
+            # 마지막 차원을 기준으로 붙인다...
+            return tf.concat(tensors, axis=-1)
+
+        result = inputs[:, :, self.label_index]
+        return result[:, :, tf.newaxis]
