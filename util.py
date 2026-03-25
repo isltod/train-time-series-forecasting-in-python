@@ -834,3 +834,56 @@ class Baseline(Model):
         result = inputs[:, :, self.label_index]
         # 마지막에 차원을 추가해서 처음 32x1x5 차원으로 만들어 반환
         return result[:, :, tf.newaxis]
+
+
+class MultiStepLastBaseline(Model):
+    def __init__(self, label_index=None):
+        super().__init__()
+        self.label_index = label_index
+
+    def call(self, inputs):
+        if self.label_index is None:
+            # inputs의 모든 배치, 모든 컬럼의 마지막 시간을 시간 축으로 24번 반복...
+            aa = inputs[:, -1:, :]
+            bb = tf.tile(aa, [1, 24, 1])
+            return tf.tile(inputs[:, -1:, :], [1, 24, 1])
+        # 24시간씩 32(배치)개에 traffic_volume 이후의 컬럼들(3개)의 값이 있는데... - 32x24x3
+        # 거기서 24시간 묶음의 마지막 값들만 뽑으면 32개 배치 x 마지막 시간 1 x 컬럼 3
+        aa = inputs[:, -1:, self.label_index :]
+        # 그걸 시간축으로 다시 24번 반복 - 32x24x3
+        bb = tf.tile(inputs[:, -1:, self.label_index :], [1, 24, 1])
+        # 즉 3개 컬럼 별로, 24시간은 같은 값을 가지는 32개 묶음... 32x24x2 반환
+        return tf.tile(inputs[:, -1:, self.label_index :], [1, 24, 1])
+
+
+class RepeatBaseline(Model):
+    def __init__(self, label_index=None):
+        super().__init__()
+        self.label_index = label_index
+
+    def call(self, inputs):
+        return inputs[:, :, self.label_index :]
+
+
+# DataWindows를 매개변수로 받고, patience는 주어진 에포크동안 val 손실이 개선되지 않을 때 중단
+def complile_and_fit(model, window, patience=3, max_epochs=50):
+    # 이게 patience를 val 손실과 연결시키는 부분...
+    early_stopping = EarlyStopping(monitor="val_loss", patience=patience, mode="min")
+    model.compile(
+        loss=MeanSquaredError(),
+        optimizer=Adam(),
+        metrics=[MeanAbsoluteError()],
+        # 요건 필요할 때 텐서 값 보려고 내가 넣은 코드...
+        run_eagerly=True,
+    )
+    # 모델 학습 관련 데이터들이 history에 저장되는 모양...
+    history = model.fit(
+        # train으로 학습
+        window.train,
+        epochs=max_epochs,
+        # val로 검증
+        validation_data=window.val,
+        # early_stopping 콜백으로 적용
+        callbacks=[early_stopping],
+    )
+    return history
