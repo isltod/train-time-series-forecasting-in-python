@@ -751,21 +751,30 @@ class DataWindow:
 
         # x축 이름은 마지막에? 먼저 하면 안되나?
         plt.xlabel("Time [h]")
+        plt.tight_layout()
+        plt.show()
 
     def make_dataset(self, data):
+        # 원래는 df로 받는 모양이네...여기서 np로 바꾸고 그걸 텐서로...
         data = np.array(data, dtype=np.float32)
         ds = tf.keras.preprocessing.timeseries_dataset_from_array(
+            # train/val/test 다 들어있다고...
             data=data,
+            # 근데 이건 위에 split_to_input_labels에서 처리하니 None이라고?
             targets=None,
             sequence_length=self.total_window_size,
             sequence_stride=1,
             shuffle=True,
             batch_size=32,
         )
+        # 이게 split_to_inputs_labels에서 targets를 처리한다는 얘기 같은데...여기서 데이터 형식을 봐야...
+        # ds는 tf.data.Dataset 인스턴스고, map은 transformation 메서드라고...
         ds = ds.map(self.split_to_inputs_labels)
         return ds
 
     # 클래스 메서드를 인스턴스 변수처럼 읽게 - 게터로 사용...세터는 @<name>.setter 형태로...
+    # train/val/test에 make_dataset 함수를 적용하기 위한 속성이라고...
+    # 명시적으로 make_dataset 함수 호출 안했는데도 들어간다면 이걸 거친거라고 보면 된다...
     @property
     def train(self):
         return self.make_dataset(self.train_df)
@@ -798,25 +807,30 @@ class DataWindow:
 class Baseline(Model):
     def __init__(self, label_index=None):
         super().__init__()
+        # 이게 예측할 컬럼 인덱스를 정해놓는거라고...
         self.label_index = label_index
 
+    # inputs는 train, val, test로 배치x시간x컬럼(32x1x5)로 오고
     def call(self, inputs):
-        # 일단 세 갈래인데...우선 label_index 없으면 그냥 inputs 반환
+        # 일단 세 갈래인데...우선 목표인 label_index 없으면 그냥 inputs 반환
         if self.label_index is None:
             return inputs
-        # 아니고 label_index 있으면, 그게 list 인스턴스인지 봐서...
+        # 아니고 목표가 여러개라서 label_index가 list라면...
         if isinstance(self.label_index, list):
             tensors = []
-            # 리스트니까 뭔가 돌면서..
+            # 각 컬럼마다 돌면서
             for index in self.label_index:
-                # 앞에 두 차원은 그대로, 마지막 차원은 같은 index의 inputs 값들을 받고
+                # 모든 배치, 시간의 목표 컬럼 값들을 뽑는데, 이러면 컬럼 차원이 사라진다...
                 result = inputs[:, :, index]
-                # 그리고 세 번째 차원을 추가? 이미 위에서 3차원 받는거 아닌가?
+                # 그래서 마지막 숫자를 차원으로 만들어서 원래 32x1x5 모양을 복원하고...
                 result = result[:, :, tf.newaxis]
                 tensors.append(result)
-            aa = tf.concat(tensors, axis=-1)
-            # 마지막 차원을 기준으로 붙인다...
+            # 그걸 마지막 차원을 기준으로 붙이면 다시 배치 x 시간 x 컬럼 차원의 텐서가 된다...
             return tf.concat(tensors, axis=-1)
 
+        # 그것도 아니면 목표가 하나라서 label_index는 숫자...
+        # 모든 배치, 시간의 목표 컬럼 값을 뽑는데...
+        # 이러면 마지막 차원이 컬럼별 숫자 -> 숫자 하나로 바뀌어 컬럼 차원이 사라지게 된다...
         result = inputs[:, :, self.label_index]
+        # 마지막에 차원을 추가해서 처음 32x1x5 차원으로 만들어 반환
         return result[:, :, tf.newaxis]
