@@ -195,7 +195,7 @@ mo_performance = {}
 # 이건 24시간 읽고 24시간 예측
 # tf.initializers.zeros는 훈련 속도를 빠르게 한다고...
 ms_linear = Sequential([Dense(1, kernel_initializer=tf.initializers.zeros)])
-history = complile_and_fit(ms_linear, multi_window)
+history = compile_and_fit(ms_linear, multi_window)
 ms_val_performance["Linear"] = ms_linear.evaluate(multi_window.val)
 ms_performance["Linear"] = ms_linear.evaluate(multi_window.test, verbose=0)
 # multi_window.plot(ms_linear)
@@ -230,7 +230,7 @@ ms_dense = Sequential(
         Dense(units=1, kernel_initializer=tf.initializers.zeros),
     ]
 )
-history = complile_and_fit(ms_dense, multi_window)
+history = compile_and_fit(ms_dense, multi_window)
 ms_val_performance["Dense"] = ms_dense.evaluate(multi_window.val)
 ms_performance["Dense"] = ms_dense.evaluate(multi_window.test, verbose=0)
 multi_window.plot(ms_dense)
