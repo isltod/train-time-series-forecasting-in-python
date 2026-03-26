@@ -912,16 +912,20 @@ def update_pf_stats(key, valValue, testValue):
     return val_dict, test_dict
 
 
-def compare_pf_stats(val_pf, test_pf):
-    ms_mae_val = [v[1] for v in val_pf.values()]
-    ms_mae_test = [v[1] for v in test_pf.values()]
+def compare_pf_stats(val_pf: dict, test_pf: dict):
+    if isinstance(list(val_pf.values())[0], (float, int)):
+        mae_val = val_pf.values()
+        mae_test = test_pf.values()
+    else:
+        mae_val = [v[1] for v in val_pf.values()]
+        mae_test = [v[1] for v in test_pf.values()]
 
     x = np.arange(len(test_pf))
 
     fig, ax = plt.subplots()
     ax.bar(
         x - 0.15,
-        ms_mae_val,
+        mae_val,
         width=0.25,
         color="black",
         edgecolor="black",
@@ -929,7 +933,7 @@ def compare_pf_stats(val_pf, test_pf):
     )
     ax.bar(
         x + 0.15,
-        ms_mae_test,
+        mae_test,
         width=0.25,
         color="white",
         edgecolor="black",
@@ -938,9 +942,9 @@ def compare_pf_stats(val_pf, test_pf):
     )
     ax.set_ylabel("MAE")
     ax.set_xlabel("Models")
-    for index, value in enumerate(ms_mae_val):
+    for index, value in enumerate(mae_val):
         plt.text(x=index - 0.15, y=value + 0.0025, s=str(round(value, 3)), ha="center")
-    for index, value in enumerate(ms_mae_test):
+    for index, value in enumerate(mae_test):
         plt.text(x=index + 0.15, y=value + 0.0025, s=str(round(value, 3)), ha="center")
     plt.ylim(0, 0.4)
     ax.set_xticks(ticks=x, labels=test_pf.keys())
