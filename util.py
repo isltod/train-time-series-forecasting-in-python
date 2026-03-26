@@ -4,7 +4,9 @@ matplotlib.use("TkAgg")
 
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pandas as pd
+import pickle
 from sklearn.metrics import (
     mean_squared_error,
     mean_absolute_error,
@@ -656,19 +658,17 @@ class DataWindow:
 
     # 일단 입력과 라벨로 나눈다는 얘기 같은데...
     # 짐작하기에 0~24 데이터 주면 0~23은 입력, 1~24는 정답지로 나눠서,
-    # 0-1, 1-2, ... 뭐 이렇게 돌리겠다는 거 같긴 한데...
+    # 0-1, 1-2, ... 뭐 이렇게 돌리겠다는 거 같긴 한데...디버깅해도 여길 안들어오니 알 수가 있나...
     def split_to_inputs_labels(self, features):
-        # 배치 처리로 데이터가 3차원이 되나? 마지막 차원은 뭐지? 아래는 다 모르겠는데...뭐 하는건지?
-        # 아무튼 데이터와 라벨에서 필요한 부분을 잘라내는데...
+        # 배치 32 x 시간 24 x 컬럼 3?에서 앞은 입력 뒤는 정답지로...
         # input_slice = (처음, input_width)
         inputs = features[:, self.input_slice, :]
         # labels_slice = (label_start, 끝)
         labels = features[:, self.labels_slice, :]
-        # 라벨 df의 컬럼명이 있었다면 -> 이게 예측 목표가 2개 이상이라는 뜻이라는데...
+        # 예측 목표가 리스트로 전달됐다면...
         if self.label_columns is not None:
-            # 아무튼 그걸 마지막 차원을 기준으로 이어붙이는데...
+            # 그걸 마지막 차원을 기준으로 이어붙이는데...
             labels = tf.stack(
-                # 두 번째가 아니라 마지막 차원이 라벨 컬럼 인덱스로 바뀌어? 뭐지 이게?
                 [
                     labels[:, :, self.column_indices[name]]
                     for name in self.label_columns
@@ -676,7 +676,7 @@ class DataWindow:
                 axis=-1,
             )
         # 그리고 그걸 다시 input_width와 label_width를 중심으로 차원을 조정해?
-        # 일단 각 차원은 batch, time, feature라는데...
+        # 그럼 배치 32 x 컬럼 3 x 시간 24 이렇게 되나?...
         inputs.set_shape([None, self.input_width, None])
         labels.set_shape([None, self.label_width, None])
 
@@ -887,3 +887,64 @@ def complile_and_fit(model, window, patience=3, max_epochs=50):
         callbacks=[early_stopping],
     )
     return history
+
+
+def update_pf_stats(key, valValue, testValue):
+    # 귀찮으니 파일 이름은 고정하고...
+    file_name = "pf_stats.pkl"
+    # 이전에 저장해놓은 성능 지표값이 있으면 읽어서...
+    if os.path.exists(file_name):
+        with open(file_name, "rb") as f:
+            val_dict, test_dict = pickle.load(f)
+            # 받은 키 값이 없으면 새로 넣고, 있으면 업데이트...
+            val_dict[key] = valValue
+            test_dict[key] = testValue
+    else:
+        # 파일이 없다는 건 처음 지표를 저장한다는 거니까, 새로 딕셔너리 만들고
+        val_dict = {key: valValue}
+        test_dict = {key: testValue}
+
+    # 어쨌거나 업데이트됐으니 딕셔너리를 튜플로 저장하고
+    with open(file_name, "wb") as f:
+        pickle.dump((val_dict, test_dict), f)
+
+    # 과거 지표까지 포함된 사전을 반환
+    return val_dict, test_dict
+
+
+def compare_pf_stats(val_pf, test_pf):
+    ms_mae_val = [v[1] for v in val_pf.values()]
+    ms_mae_test = [v[1] for v in test_pf.values()]
+
+    x = np.arange(len(test_pf))
+
+    fig, ax = plt.subplots()
+    ax.bar(
+        x - 0.15,
+        ms_mae_val,
+        width=0.25,
+        color="black",
+        edgecolor="black",
+        label="Validation",
+    )
+    ax.bar(
+        x + 0.15,
+        ms_mae_test,
+        width=0.25,
+        color="white",
+        edgecolor="black",
+        hatch="/",
+        label="Test",
+    )
+    ax.set_ylabel("MAE")
+    ax.set_xlabel("Models")
+    for index, value in enumerate(ms_mae_val):
+        plt.text(x=index - 0.15, y=value + 0.0025, s=str(round(value, 3)), ha="center")
+    for index, value in enumerate(ms_mae_test):
+        plt.text(x=index + 0.15, y=value + 0.0025, s=str(round(value, 3)), ha="center")
+    plt.ylim(0, 0.4)
+    ax.set_xticks(ticks=x, labels=test_pf.keys())
+    # ax.set_xticklabels(list(test_pf.keys()), rotation=45)
+    ax.legend(loc="best")
+    plt.tight_layout()
+    plt.show()

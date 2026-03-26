@@ -235,38 +235,7 @@ ms_val_performance["Dense"] = ms_dense.evaluate(multi_window.val)
 ms_performance["Dense"] = ms_dense.evaluate(multi_window.test, verbose=0)
 multi_window.plot(ms_dense)
 
-ms_mae_val = [v[1] for v in ms_val_performance.values()]
-ms_mae_test = [v[1] for v in ms_performance.values()]
+for key, value in ms_val_performance.items():
+    val_dict, test_dict = update_pf_stats(key, value, ms_performance[key])
 
-x = np.arange(len(ms_performance))
-
-fig, ax = plt.subplots()
-ax.bar(
-    x - 0.15,
-    ms_mae_val,
-    width=0.25,
-    color="black",
-    edgecolor="black",
-    label="Validation",
-)
-ax.bar(
-    x + 0.15,
-    ms_mae_test,
-    width=0.25,
-    color="white",
-    edgecolor="black",
-    hatch="/",
-    label="Test",
-)
-ax.set_ylabel("MAE")
-ax.set_xlabel("Models")
-for index, value in enumerate(ms_mae_val):
-    plt.text(x=index - 0.15, y=value + 0.0025, s=str(round(value, 3)), ha="center")
-for index, value in enumerate(ms_mae_test):
-    plt.text(x=index + 0.15, y=value + 0.0025, s=str(round(value, 3)), ha="center")
-plt.ylim(0, 0.4)
-ax.set_xticks(ticks=x, labels=ms_performance.keys())
-# ax.set_xticklabels(list(ms_performance.keys()), rotation=45)
-ax.legend(loc="best")
-plt.tight_layout()
-plt.show()
+compare_pf_stats(ms_val_performance, ms_performance)
