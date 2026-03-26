@@ -110,7 +110,7 @@ ms_cnn_model = Sequential(
         Dense(units=1, kernel_initializer=tf.initializers.zeros),
     ]
 )
-history = complile_and_fit(ms_cnn_model, multi_window)
+history = compile_and_fit(ms_cnn_model, multi_window)
 ms_val_performance = {}
 ms_performance = {}
 ms_val_performance["CNN"] = ms_cnn_model.evaluate(multi_window.val)
@@ -125,7 +125,7 @@ ms_cnn_lstm_model = Sequential(
         Dense(1, kernel_initializer=tf.initializers.zeros),
     ]
 )
-history = complile_and_fit(ms_cnn_lstm_model, multi_window)
+history = compile_and_fit(ms_cnn_lstm_model, multi_window)
 ms_val_performance["CNN+LSTM"] = ms_cnn_lstm_model.evaluate(multi_window.val)
 ms_performance["CNN+LSTM"] = ms_cnn_lstm_model.evaluate(multi_window.test, verbose=0)
 multi_window.plot(ms_cnn_lstm_model)

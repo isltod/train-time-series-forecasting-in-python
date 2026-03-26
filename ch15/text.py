@@ -61,7 +61,7 @@ ms_lstm_model = Sequential(
         Dense(units=1, kernel_initializer=tf.initializers.zeros),
     ]
 )
-history = complile_and_fit(ms_lstm_model, multi_window)
+history = compile_and_fit(ms_lstm_model, multi_window)
 ms_val_performance = ms_lstm_model.evaluate(multi_window.val)
 ms_test_performance = ms_lstm_model.evaluate(multi_window.test, verbose=0)
 val_dict, test_dict = update_pf_stats(

@@ -866,7 +866,7 @@ class RepeatBaseline(Model):
 
 
 # DataWindows를 매개변수로 받고, patience는 주어진 에포크동안 val 손실이 개선되지 않을 때 중단
-def complile_and_fit(model, window, patience=3, max_epochs=50):
+def compile_and_fit(model, window, patience=3, max_epochs=50):
     # 이게 patience를 val 손실과 연결시키는 부분...
     early_stopping = EarlyStopping(monitor="val_loss", patience=patience, mode="min")
     model.compile(
@@ -952,3 +952,55 @@ def compare_pf_stats(val_pf: dict, test_pf: dict):
     ax.legend(loc="best")
     plt.tight_layout()
     plt.show()
+
+
+class AutoRegressive(Model):
+    # LSTMCell, RNN, Dense 층을 이용해서 네트워크를 만드는 모양...
+    def __init__(self, units, out_steps):
+        super().__init__()
+        # 예측을 몇 시간 할지, 뉴런은 몇 개인지...인가? 근데 뉴런 수와 출력 수는 별개냐?
+        self.out_steps = out_steps
+        self.units = units
+        self.lstm_cell = LSTMCell(units)
+        # LSTMCell의 출력을 래핑하여 상태를 추적하는 RNN 레이어
+        self.lstm_rnn = RNN(self.lstm_cell, return_state=True)
+        # train_df.shape[1]라는데...뭔 이런...절대로 이해가 되질 않는다...
+        self.dense = Dense(5)
+
+    # 자기회귀...라는 방법으로 예측을 다시 넣어서 예측을 하는데, 그 중 첫 번째 예측을 뽑는 과정이라고...
+    def warmup(self, inputs):
+        # 입력을 RNN에 넣어서 결과(출력과 상태)를 받고
+        # inputs.shape => (batch, time, features)
+        # x.shape => (batch, units)
+        # state는 가변인자...
+        x, *state = self.lstm_rnn(inputs)
+
+        # 그걸 Dense 층에 넣어 예측을 받기...
+        # predictions.shape => (batch, features)
+        prediction = self.dense(x)
+        return prediction, state
+
+    # 루프를 돌면서 24개 예측을 만든다고...케라스에 의해 암시적으로 호출된다고...이름을 무조건 call로..
+    def call(self, inputs, training=None):
+        # 예측값을 저장할 리스트
+        predictions = []
+        # 초기 예측값과 상태를 얻음 - 케라스가 알아서 call 부르고 그게 또 warmup 불러서 작동하나?
+        prediction, state = self.warmup(inputs)
+
+        # 첫 번째 예측값 저장
+        predictions.append(prediction)
+
+        # 나머지 (out_steps - 1) 만큼 돌면서 예측...
+        for _ in range(1, self.out_steps):
+            # 이전 예측값을 입력으로 사용하고,
+            x = prediction
+            # 나머지는 warmup 예측처럼 RNN -> Dense 통과해 예측
+            x, state = self.lstm_cell(x, states=state, training=training)
+            prediction = self.dense(x)
+            predictions.append(prediction)
+
+        # predictions.shape => (시간 out_steps, batch, 컬럼 1) 모양이 된다고...
+        predictions = tf.stack(predictions)
+        # 그걸 (batch, out_steps, 1) 모양으로 변경
+        predictions = tf.transpose(predictions, [1, 0, 2])
+        return predictions
